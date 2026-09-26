@@ -69,7 +69,6 @@ export default function LicensesPage() {
           <option value="">All plans</option>
           <option value="community">Community</option>
           <option value="professional">Professional</option>
-          <option value="business">Business</option>
           <option value="enterprise">Enterprise</option>
         </select>
       </div>
@@ -78,7 +77,7 @@ export default function LicensesPage() {
 
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px]">
+          <table className="w-full min-w-[880px]">
             <thead>
               <tr>
                 <th className="th">Company</th>
@@ -87,19 +86,20 @@ export default function LicensesPage() {
                 <th className="th">Machines</th>
                 <th className="th">Status</th>
                 <th className="th">Paid</th>
+                <th className="th">Subscribed</th>
                 <th className="th">Expires</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td className="td text-soft" colSpan={7}>Loading…</td></tr>
+                <tr><td className="td text-soft" colSpan={8}>Loading…</td></tr>
               ) : licenses.length === 0 ? (
-                <tr><td className="td text-soft" colSpan={7}>No licenses yet — onboard your first customer.</td></tr>
+                <tr><td className="td text-soft" colSpan={8}>No licenses yet — onboard your first customer.</td></tr>
               ) : (
                 licenses.map((l) => (
                   <tr key={l.id} className="hover:bg-line/20 transition-colors">
                     <td className="td">
-                      <Link href={`/licenses/${l.id}`} className="font-medium hover:text-primary transition-colors">
+                      <Link href={`/licenses/${l.id}`} className="font-medium text-primary underline underline-offset-2 decoration-primary/40 hover:decoration-primary transition-colors">
                         {l.company_name || "—"}
                       </Link>
                       <p className="text-xs text-soft">{l.email}</p>
@@ -117,6 +117,7 @@ export default function LicensesPage() {
                         {l.amount_paid ? "yes" : "no"}
                       </span>
                     </td>
+                    <td className="td text-soft">{fmtDate(l.created_at)}</td>
                     <td className="td text-soft">{fmtDate(l.trial_expires_at || l.expires_at)}</td>
                   </tr>
                 ))

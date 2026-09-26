@@ -2,9 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Copy, Check, RefreshCw, KeyRound, Banknote } from "lucide-react";
-import { api, fmtDate, fmtINR, STATUS_COLORS } from "@/lib/api";
+import { Copy, Check, RefreshCw, KeyRound, Banknote, ArrowUpCircle, ArrowDownCircle, Eye, EyeOff } from "lucide-react";
+import { api, fmtDate, fmtINR, STATUS_COLORS, Plan } from "@/lib/api";
 import ConfirmDialog from "@/components/ConfirmDialog";
+
+// Tier order for labeling a plan change as an upgrade or a demotion — same
+// order as the backend's ProductPlanOrder.
+const PLAN_RANK: Record<string, number> = { community: 0, professional: 1, enterprise: 2 };
 
 type Detail = {
   license: any;
@@ -29,14 +33,25 @@ export default function LicenseDetailPage() {
   const [msg, setMsg] = useState("");
   const [newKey, setNewKey] = useState("");
   const [copied, setCopied] = useState(false);
-  const [dialog, setDialog] = useState<null | "rotate" | "save" | "payment">(null);
+  const [showHash, setShowHash] = useState(false);
+  const [hashCopied, setHashCopied] = useState(false);
+  const [dialog, setDialog] = useState<null | "rotate" | "save" | "payment" | "upgrade" | "status">(null);
   const [dialogBusy, setDialogBusy] = useState(false);
 
-  // edit form
-  const [edit, setEdit] = useState({ machine_quota: "", plan: "", status: "", extend_days: "", reason: "" });
+  // edit form — quota (either direction) + extend + updates; plan/status live elsewhere
+  const [edit, setEdit] = useState({ machine_quota: "", extend_days: "", deployment_url: "", reason: "" });
   const [updGranted, setUpdGranted] = useState<boolean | null>(null);
   // payment form
   const [pay, setPay] = useState({ amount: "", method: "bank transfer", reference: "", covers_period: "" });
+  // upgrade plan
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [upgrade, setUpgrade] = useState({ plan: "", machine_quota: "", reason: "" });
+  // suspend / reactivate / revoke
+  const [statusAction, setStatusAction] = useState({ status: "", reason: "" });
+
+  useEffect(() => {
+    api<{ plans: Plan[] }>("/api/admin/plans").then((r) => setPlans(r.plans)).catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -54,27 +69,25 @@ export default function LicenseDetailPage() {
   function editSummary(): string {
     const parts: string[] = [];
     if (edit.machine_quota) parts.push(`quota → ${edit.machine_quota}`);
-    if (edit.plan) parts.push(`plan → ${edit.plan}`);
-    if (edit.status) parts.push(`status → ${edit.status}`);
     if (edit.extend_days) parts.push(`extend by ${edit.extend_days} days`);
+    if (edit.deployment_url) parts.push(`deployment URL → ${edit.deployment_url}`);
     if (updGranted !== null) parts.push(`updates ${updGranted ? "granted" : "revoked"}`);
     return parts.join(" · ");
   }
 
-  const hasEdits = !!(edit.machine_quota || edit.plan || edit.status || edit.extend_days || updGranted !== null);
+  const hasEdits = !!(edit.machine_quota || edit.extend_days || edit.deployment_url || updGranted !== null);
 
   async function saveEdit() {
     setDialogBusy(true);
     setMsg("");
     const body: any = { reason: edit.reason };
     if (edit.machine_quota) body.machine_quota = Number(edit.machine_quota);
-    if (edit.plan) body.plan = edit.plan;
-    if (edit.status) body.status = edit.status;
     if (edit.extend_days) body.extend_days = Number(edit.extend_days);
+    if (edit.deployment_url) body.deployment_url = edit.deployment_url;
     if (updGranted !== null) body.updates_granted = updGranted;
     try {
       await api(`/api/admin/licenses/${id}`, { method: "PATCH", body });
-      setEdit({ machine_quota: "", plan: "", status: "", extend_days: "", reason: "" });
+      setEdit({ machine_quota: "", extend_days: "", deployment_url: "", reason: "" });
       setUpdGranted(null);
       setMsg("License updated ✔");
       load();
@@ -92,6 +105,46 @@ export default function LicenseDetailPage() {
     try {
       const r = await api<{ api_key: string }>(`/api/admin/licenses/${id}/rotate-key`, { method: "POST" });
       setNewKey(r.api_key);
+    } catch (e: any) {
+      setMsg(e.message);
+    } finally {
+      setDialogBusy(false);
+      setDialog(null);
+    }
+  }
+
+  async function upgradeLicense() {
+    setDialogBusy(true);
+    setMsg("");
+    try {
+      const r = await api<{ api_key: string }>(`/api/admin/licenses/${id}/upgrade`, {
+        method: "POST",
+        body: {
+          plan: upgrade.plan,
+          machine_quota: Number(upgrade.machine_quota) || 0,
+          reason: upgrade.reason,
+        },
+      });
+      setNewKey(r.api_key);
+      setUpgrade({ plan: "", machine_quota: "", reason: "" });
+      setMsg("License upgraded ✔ — new API key shown below, previous one now inactive");
+      load();
+    } catch (e: any) {
+      setMsg(e.message);
+    } finally {
+      setDialogBusy(false);
+      setDialog(null);
+    }
+  }
+
+  async function applyStatus() {
+    setDialogBusy(true);
+    setMsg("");
+    try {
+      await api(`/api/admin/licenses/${id}/status`, { method: "POST", body: statusAction });
+      setMsg(`License ${statusAction.status} ✔`);
+      setStatusAction({ status: "", reason: "" });
+      load();
     } catch (e: any) {
       setMsg(e.message);
     } finally {
@@ -127,6 +180,9 @@ export default function LicenseDetailPage() {
   const machines = data.machines || [];
   const history = data.history || [];
   const payments = data.payments || [];
+  const currentPlanDef = plans.find((p) => p.id === lic.plan);
+  const currentRank = PLAN_RANK[lic.plan] ?? 0;
+  const upgradeIsDemotion = !!upgrade.plan && (PLAN_RANK[upgrade.plan] ?? 0) < currentRank;
 
   return (
     <div className="space-y-6">
@@ -188,42 +244,116 @@ export default function LicenseDetailPage() {
           <p><span className="text-soft">Updates:</span> {lic.updates_granted ? `granted (${lic.update_channel || "stable"})` : "not granted"}</p>
           <p><span className="text-soft">Deployment:</span> {lic.deployment_url || "—"}</p>
           <p><span className="text-soft">Last seen:</span> {fmtDate(lic.last_seen_at)} {lic.product_version ? `· v${lic.product_version}` : ""}</p>
+          <div className="pt-1.5 border-t border-line/50 mt-1.5">
+            <p className="text-soft mb-1">Current API key (sha256 hash — never the plaintext):</p>
+            <div className="flex items-center gap-1.5">
+              <code className="flex-1 bg-paper border border-line rounded-lg px-2 py-1 text-[11px] break-all">
+                {showHash ? lic.api_key_hash : "•".repeat(24)}
+              </code>
+              <button className="btn-ghost !px-2 !py-1" title={showHash ? "Hide" : "View"} onClick={() => setShowHash((s) => !s)}>
+                {showHash ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              </button>
+              <button className="btn-ghost !px-2 !py-1" title="Copy"
+                onClick={() => { navigator.clipboard.writeText(lic.api_key_hash); setHashCopied(true); setTimeout(() => setHashCopied(false), 1500); }}>
+                {hashCopied ? <Check className="h-3.5 w-3.5 text-good" /> : <Copy className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+            <p className="text-[11px] text-soft mt-1">
+              Hash the customer's LICENSE_API_KEY the same way (sha256, hex) and compare — confirms which key their deployment actually has without ever seeing it in plaintext again.
+            </p>
+          </div>
         </div>
+      </div>
+
+      {/* upgrade plan */}
+      <div className="card p-6 border-bp/40">
+        <h2 className="font-semibold mb-1">Upgrade plan</h2>
+        <p className="text-xs text-soft mb-4">
+          Changes the plan tier. Login stays the same — the deployment API key rotates and a new one is emailed.
+        </p>
+        {currentRank >= Math.max(...Object.values(PLAN_RANK)) && (
+          <p className="text-xs text-soft mb-3">
+            Already on <b className="capitalize">{lic.plan}</b> — the top tier. You can only demote below.
+          </p>
+        )}
+        <div className="grid sm:grid-cols-2 gap-3 mb-4">
+          {plans.filter((p) => p.id !== lic.plan).map((p) => {
+            const isUpgrade = (PLAN_RANK[p.id] ?? 0) > currentRank;
+            return (
+              <button
+                type="button"
+                key={p.id}
+                onClick={() => setUpgrade({ ...upgrade, plan: p.id, machine_quota: p.max_machines > 0 ? String(p.max_machines) : "" })}
+                className={`card p-4 text-left transition-colors ${
+                  upgrade.plan === p.id ? "border-bp bg-bpdeep/10" : "hover:border-bp/50"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-semibold">{p.name}</span>
+                  <span className={`pill ${isUpgrade ? "bg-good/15 text-good" : "bg-warn/15 text-warn"}`}>
+                    {isUpgrade ? "↑ upgrade" : "↓ demote"}
+                  </span>
+                </div>
+                <p className="text-xs text-soft">{p.description}</p>
+              </button>
+            );
+          })}
+        </div>
+        {upgrade.plan && (
+          <div className="grid sm:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">
+                Machine quota *{" "}
+                {(() => {
+                  const p = plans.find((x) => x.id === upgrade.plan);
+                  return p && p.max_machines > 0 ? `(max ${p.max_machines})` : "";
+                })()}
+              </label>
+              <input className="input" type="number" min={1} value={upgrade.machine_quota}
+                onChange={(e) => setUpgrade({ ...upgrade, machine_quota: e.target.value })} placeholder="required" />
+            </div>
+            <div>
+              <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">Reason (optional)</label>
+              <input className="input" value={upgrade.reason}
+                onChange={(e) => setUpgrade({ ...upgrade, reason: e.target.value })} placeholder="goes to change history" />
+            </div>
+          </div>
+        )}
+        <button className="btn-primary" disabled={!upgrade.plan || !upgrade.machine_quota} onClick={() => setDialog("upgrade")}>
+          {upgradeIsDemotion ? <ArrowDownCircle className="h-4 w-4" /> : <ArrowUpCircle className="h-4 w-4" />}
+          {upgradeIsDemotion ? "Demote license" : "Upgrade license"}
+        </button>
       </div>
 
       {/* update license */}
       <div className="card p-6">
-        <h2 className="font-semibold mb-4">Update license</h2>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <h2 className="font-semibold mb-1">Update license</h2>
+        <p className="text-xs text-soft mb-4">
+          Adjusts machine count (either direction) and extends validity — for changing the plan tier itself, use "Upgrade plan" above.
+        </p>
+        <div className="grid sm:grid-cols-3 gap-4 mb-4">
           <div>
-            <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">Machine quota</label>
-            <input className="input" type="number" placeholder={String(lic.machine_quota)}
+            <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">
+              Machine quota (current: {lic.machine_quota}{currentPlanDef && currentPlanDef.max_machines > 0 ? `, max ${currentPlanDef.max_machines}` : ""})
+            </label>
+            <input className="input" type="number" min={1} placeholder={String(lic.machine_quota)}
               value={edit.machine_quota} onChange={(e) => setEdit({ ...edit, machine_quota: e.target.value })} />
           </div>
           <div>
             <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">Plan</label>
-            <select className="input" value={edit.plan} onChange={(e) => setEdit({ ...edit, plan: e.target.value })}>
-              <option value="">keep: {lic.plan}</option>
-              <option value="community">Community</option>
-              <option value="professional">Professional</option>
-              <option value="business">Business</option>
-              <option value="enterprise">Enterprise</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">Status</label>
-            <select className="input" value={edit.status} onChange={(e) => setEdit({ ...edit, status: e.target.value })}>
-              <option value="">keep: {lic.status}</option>
-              <option value="trial">trial</option>
-              <option value="confirmed">confirmed (paid)</option>
-              <option value="suspended">suspended</option>
-              <option value="revoked">revoked</option>
-            </select>
+            <p className="input flex items-center capitalize text-soft">{lic.plan} (fixed — use Upgrade plan)</p>
           </div>
           <div>
             <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">Extend (days)</label>
             <input className="input" type="number" placeholder="e.g. 30"
               value={edit.extend_days} onChange={(e) => setEdit({ ...edit, extend_days: e.target.value })} />
+          </div>
+          <div className="sm:col-span-3">
+            <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">
+              Deployment URL — locked to: {lic.deployment_url || "none yet"}
+            </label>
+            <input className="input" placeholder="set to move this license to a new deployment"
+              value={edit.deployment_url} onChange={(e) => setEdit({ ...edit, deployment_url: e.target.value })} />
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-4 mb-4">
@@ -246,20 +376,69 @@ export default function LicenseDetailPage() {
         </div>
       </div>
 
+      {/* license status */}
+      <div className="card p-6 border-bad/30">
+        <h2 className="font-semibold mb-1">License status</h2>
+        {lic.status === "revoked" ? (
+          <p className="text-sm text-soft">This license is revoked — permanent. Issue a new license instead.</p>
+        ) : (
+          <>
+            <p className="text-xs text-soft mb-4">
+              Suspend pauses access (deployment calls start failing immediately, reversible). Revoke is permanent.
+            </p>
+            <div className="grid sm:grid-cols-3 gap-4 mb-4">
+              <div>
+                <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">Action *</label>
+                <select className="input" value={statusAction.status}
+                  onChange={(e) => setStatusAction({ ...statusAction, status: e.target.value })}>
+                  <option value="">choose…</option>
+                  {lic.status === "suspended" ? (
+                    <option value="confirmed">Reactivate (confirmed)</option>
+                  ) : (
+                    <option value="suspended">Suspend</option>
+                  )}
+                  <option value="revoked">Revoke (permanent)</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">Reason (optional)</label>
+                <input className="input" value={statusAction.reason}
+                  onChange={(e) => setStatusAction({ ...statusAction, reason: e.target.value })} placeholder="goes to change history" />
+              </div>
+            </div>
+            <button className="btn-danger" disabled={!statusAction.status} onClick={() => setDialog("status")}>
+              Apply
+            </button>
+          </>
+        )}
+      </div>
+
       {/* record payment */}
       <div className="card p-6">
         <h2 className="font-semibold mb-4">Record payment</h2>
         <div className="grid sm:grid-cols-4 gap-4 mb-4">
-          <input className="input" type="number" placeholder="Amount (₹)"
-            value={pay.amount} onChange={(e) => setPay({ ...pay, amount: e.target.value })} />
-          <input className="input" placeholder="Method"
-            value={pay.method} onChange={(e) => setPay({ ...pay, method: e.target.value })} />
-          <input className="input" placeholder="Reference / UTR"
-            value={pay.reference} onChange={(e) => setPay({ ...pay, reference: e.target.value })} />
-          <input className="input" placeholder="Covers period (e.g. Jul 2026)"
-            value={pay.covers_period} onChange={(e) => setPay({ ...pay, covers_period: e.target.value })} />
+          <div>
+            <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">Amount (₹) *</label>
+            <input className="input" type="number" min={1} placeholder="e.g. 5000"
+              value={pay.amount} onChange={(e) => setPay({ ...pay, amount: e.target.value })} />
+          </div>
+          <div>
+            <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">Method</label>
+            <input className="input" placeholder="bank transfer"
+              value={pay.method} onChange={(e) => setPay({ ...pay, method: e.target.value })} />
+          </div>
+          <div>
+            <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">Reference / UTR</label>
+            <input className="input" placeholder="optional"
+              value={pay.reference} onChange={(e) => setPay({ ...pay, reference: e.target.value })} />
+          </div>
+          <div>
+            <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">Covers period</label>
+            <input className="input" placeholder="e.g. Jul 2026"
+              value={pay.covers_period} onChange={(e) => setPay({ ...pay, covers_period: e.target.value })} />
+          </div>
         </div>
-        <button className="btn-primary" onClick={() => setDialog("payment")} disabled={!pay.amount}>
+        <button className="btn-primary" onClick={() => setDialog("payment")} disabled={!(Number(pay.amount) > 0)}>
           <Banknote className="h-4 w-4" /> Record payment
         </button>
       </div>
@@ -342,9 +521,37 @@ export default function LicenseDetailPage() {
         danger
         busy={dialogBusy}
         title="Rotate deployment API key?"
-        description={`The current key for ${lic.public_id} stops working immediately. The deployment must be reconfigured with the new key — it is shown only once.`}
+        description={`⚠ This affects the live deployment. The old key keeps working for a short grace period, then stops entirely — update LICENSE_API_KEY on ${cust.company_name}'s deployment before it lapses, or their backend will start failing every license check. New key for ${lic.public_id} is emailed and shown only once here.`}
         confirmLabel="Rotate key"
         onConfirm={() => rotateKey()}
+        onClose={() => setDialog(null)}
+      />
+
+      {/* upgrade plan */}
+      <ConfirmDialog
+        open={dialog === "upgrade"}
+        danger
+        busy={dialogBusy}
+        title={upgradeIsDemotion ? "Demote this license?" : "Upgrade this license?"}
+        description={`⚠ This affects the live deployment — it also rotates the API key. ${cust.company_name} (${lic.public_id}): ${lic.plan} → ${upgrade.plan}, quota ${upgrade.machine_quota}. The old key keeps working for a short grace period, then stops — the new one is emailed and must be set on the deployment before then. Login is unchanged.`}
+        confirmLabel={upgradeIsDemotion ? "Demote license" : "Upgrade license"}
+        onConfirm={() => upgradeLicense()}
+        onClose={() => setDialog(null)}
+      />
+
+      {/* license status */}
+      <ConfirmDialog
+        open={dialog === "status"}
+        danger
+        busy={dialogBusy}
+        title={statusAction.status === "revoked" ? "Revoke this license?" : statusAction.status === "confirmed" ? "Reactivate this license?" : "Suspend this license?"}
+        description={
+          statusAction.status === "revoked"
+            ? `${cust.company_name} (${lic.public_id}) will be permanently revoked. Every deployment call fails immediately and this cannot be undone — issuing access again requires a new license.`
+            : `${cust.company_name} (${lic.public_id}): ${lic.status} → ${statusAction.status}. Deployment calls will ${statusAction.status === "confirmed" ? "resume" : "start failing"} immediately.`
+        }
+        confirmLabel="Apply"
+        onConfirm={() => applyStatus()}
         onClose={() => setDialog(null)}
       />
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Copy, Check, Server } from "lucide-react";
 import { api, Plan } from "@/lib/api";
+import PhoneInput from "@/components/PhoneInput";
 
 type OnboardResult = {
   license_id: string;
@@ -23,7 +24,7 @@ export default function OnboardPage() {
     phone: "",
     deployment_url: "",
     plan: "community",
-    machine_quota: 0,
+    machine_quota: 10,
     custom_rate: 0,
     updates_granted: true,
     update_channel: "stable",
@@ -42,11 +43,24 @@ export default function OnboardPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    if (!form.phone.trim()) {
+      setError("Phone number is required");
+      return;
+    }
+    if (form.plan === "enterprise" && (!form.machine_quota || form.machine_quota <= 0)) {
+      setError("Machine quota is required for the Enterprise plan");
+      return;
+    }
     setLoading(true);
     try {
       const res = await api<OnboardResult>("/api/admin/customers", {
         method: "POST",
-        body: { ...form, machine_quota: Number(form.machine_quota) || 0, custom_rate: Number(form.custom_rate) || 0 },
+        body: {
+          ...form,
+          machine_quota: form.plan === "community" ? 10 : Number(form.machine_quota) || 0,
+          custom_rate: Number(form.custom_rate) || 0,
+          update_channel: "stable",
+        },
       });
       setResult(res);
     } catch (e: any) {
@@ -113,22 +127,21 @@ export default function OnboardPage() {
           <div className="sm:col-span-2">
             <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">Company name *</label>
             <input className="input" required value={form.company_name}
-              onChange={(e) => setForm({ ...form, company_name: e.target.value })} placeholder="Acme Corp" />
+              onChange={(e) => setForm({ ...form, company_name: e.target.value })} placeholder="WebXterm" />
           </div>
           <div>
             <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">Email *</label>
             <input className="input" type="email" required value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="admin@acme.com" />
+              onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="admin@webxterm.com" />
           </div>
           <div>
-            <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">Phone</label>
-            <input className="input" value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+91…" />
+            <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">Phone *</label>
+            <PhoneInput value={form.phone} onChange={(phone) => setForm({ ...form, phone })} />
           </div>
           <div className="sm:col-span-2">
             <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">Deployment URL</label>
             <input className="input" value={form.deployment_url}
-              onChange={(e) => setForm({ ...form, deployment_url: e.target.value })} placeholder="https://console.acme.com" />
+              onChange={(e) => setForm({ ...form, deployment_url: e.target.value })} placeholder="https://webxterm.com" />
           </div>
         </div>
 
@@ -139,7 +152,9 @@ export default function OnboardPage() {
               <button
                 type="button"
                 key={p.id}
-                onClick={() => setForm({ ...form, plan: p.id })}
+                onClick={() =>
+                  setForm({ ...form, plan: p.id, machine_quota: p.id === "community" ? 10 : form.machine_quota })
+                }
                 className={`card p-4 text-left transition-colors ${
                   form.plan === p.id ? "border-bp bg-bpdeep/10" : "hover:border-bp/50"
                 }`}
@@ -157,11 +172,13 @@ export default function OnboardPage() {
         <div className="card p-6 grid sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">
-              Machine quota {selectedPlan && selectedPlan.max_machines > 0 ? `(max ${selectedPlan.max_machines})` : ""}
+              Machine quota{form.plan === "enterprise" ? " *" : ""} {form.plan === "community" ? "(fixed at 10)" : selectedPlan && selectedPlan.max_machines > 0 ? `(max ${selectedPlan.max_machines})` : ""}
             </label>
             <div className="relative">
               <Server className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-soft" />
-              <input className="input pl-9" type="number" min={0} value={form.machine_quota || ""}
+              <input className="input pl-9" type="number" min={0}
+                value={form.plan === "community" ? 10 : form.machine_quota || ""}
+                disabled={form.plan === "community"}
                 onChange={(e) => setForm({ ...form, machine_quota: Number(e.target.value) })}
                 placeholder={selectedPlan?.trial ? "default 10" : "plan max"} />
             </div>
@@ -176,9 +193,8 @@ export default function OnboardPage() {
             </div>
           )}
           <div>
-            <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">Update channel</label>
-            <input className="input" value={form.update_channel}
-              onChange={(e) => setForm({ ...form, update_channel: e.target.value })} placeholder="stable" />
+            <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">Update channel (fixed)</label>
+            <input className="input" value="stable" disabled />
           </div>
           <label className="flex items-center gap-2.5 text-sm sm:col-span-2">
             <input type="checkbox" checked={form.updates_granted}

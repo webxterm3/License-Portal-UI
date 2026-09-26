@@ -104,14 +104,23 @@ export default function UsersPage() {
       <form onSubmit={createUser} className="card p-6 mb-6">
         <h2 className="font-semibold mb-4">Add team user</h2>
         <div className="grid sm:grid-cols-3 gap-4 mb-4">
-          <input className="input" type="email" required placeholder="teammate@webxterm.me"
-            value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-          <input className="input" type="password" required minLength={8} placeholder="password (min 8 chars)"
-            value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-          <select className="input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-            <option value="admin">admin (team member)</option>
-            <option value="superadmin">superadmin (full access)</option>
-          </select>
+          <div>
+            <label className="block text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1.5">Email *</label>
+            <input className="input" type="email" required placeholder="teammate@webxterm.me"
+              value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          </div>
+          <div>
+            <label className="block text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1.5">Password *</label>
+            <input className="input" type="password" required minLength={8} placeholder="min 8 chars"
+              value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+          </div>
+          <div>
+            <label className="block text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1.5">Role *</label>
+            <select className="input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+              <option value="admin">admin (team member)</option>
+              <option value="superadmin">superadmin (full access)</option>
+            </select>
+          </div>
         </div>
         <button className="btn-primary" disabled={busy}>
           <UserPlus className="h-4 w-4" /> Create user

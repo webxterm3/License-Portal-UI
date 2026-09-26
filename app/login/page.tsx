@@ -26,7 +26,7 @@ const termLines = [
   { text: "$ webxterm license activate --key wxl_****", color: "green", delay: 400 },
   { text: "✓ Signed entitlement verified (Ed25519)", color: "primary", delay: 300 },
   { text: "$ webxterm license status", color: "green", delay: 500 },
-  { text: "plan: business      quota: 500 machines", color: "muted", delay: 150 },
+  { text: "plan: enterprise    quota: 500 machines", color: "muted", delay: 150 },
   { text: "status: confirmed   expires: 2027-07-06", color: "muted", delay: 100 },
   { text: "$ webxterm machines add prod-server-42", color: "green", delay: 600 },
   { text: "✓ 42 / 500 — within licensed quota", color: "primary", delay: 350 },
@@ -112,6 +112,13 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [idleNotice, setIdleNotice] = useState(false);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("reason") === "idle") {
+      setIdleNotice(true);
+    }
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -123,7 +130,9 @@ export default function LoginPage() {
         body: { email: email.trim().toLowerCase(), password },
       });
       setSession(res.token, res.email, res.role);
-      window.location.replace("/dashboard");
+      // Land on the product chooser, not a specific product's dashboard —
+      // this session isn't scoped to PAM or EPM until the operator picks one.
+      window.location.replace("/products");
     } catch (err: any) {
       setError(err.message);
       setLoading(false);
@@ -297,6 +306,11 @@ export default function LoginPage() {
             >
               <h2 className="text-2xl font-bold">Welcome back</h2>
               <p className="text-muted-foreground mt-2 text-sm">Sign in to the licensing portal</p>
+              {idleNotice && (
+                <p className="mt-4 text-sm text-warn bg-warn/10 border border-warn/20 rounded-lg px-3 py-2">
+                  You were signed out after 10 minutes of inactivity.
+                </p>
+              )}
             </motion.div>
           </div>
 
@@ -307,7 +321,7 @@ export default function LoginPage() {
               transition={{ duration: 0.4, delay: 0.2 }}
               className="space-y-2"
             >
-              <label htmlFor="email" className="text-sm font-medium">Email</label>
+              <label htmlFor="email" className="text-sm font-medium">Email *</label>
               <div className="relative group">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                 <input
@@ -329,7 +343,7 @@ export default function LoginPage() {
               transition={{ duration: 0.4, delay: 0.27 }}
               className="space-y-2"
             >
-              <label htmlFor="password" className="text-sm font-medium">Password</label>
+              <label htmlFor="password" className="text-sm font-medium">Password *</label>
               <div className="relative group">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                 <input
