@@ -25,7 +25,7 @@ export const PRODUCTS: Record<ProductId, ProductDef> = {
   },
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 export function getProduct(): ProductId | null {
   if (typeof window === "undefined") return null;
@@ -110,18 +110,14 @@ export type License = {
   status: string;
   updates_granted: boolean;
   update_channel: string;
-  deployment_url: string;
-  api_key_hash: string; // sha256 of the deployment API key — never the plaintext
   trial_expires_at?: string;
   expires_at?: string;
-  activated_at?: string;
-  last_seen_at?: string;
-  product_version?: string;
+  last_file_issued_at?: string;
+  file_expires_at?: string;
   amount_paid: boolean;
   created_at: string;
   company_name?: string;
   email?: string;
-  machines_used?: number;
 };
 
 export const STATUS_COLORS: Record<string, string> = {

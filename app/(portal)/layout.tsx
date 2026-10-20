@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard, FileBadge, UserPlus, Inbox, Mail, ScrollText, LogOut, Terminal, Sun, Moon, Users, ArrowLeftRight, Check, ChevronDown,
+  LayoutDashboard, FileBadge, UserPlus, Mail, ScrollText, LogOut, Terminal, Sun, Moon, Users, ArrowLeftRight, Check, ChevronDown,
 } from "lucide-react";
 import { clearSession, getRole, getToken, getProduct, setProduct, PRODUCTS, type ProductId } from "@/lib/api";
 import { useIdleLogout } from "@/lib/useIdleLogout";
@@ -17,7 +17,6 @@ const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/licenses", label: "Licenses", icon: FileBadge },
   { href: "/licenses/onboard", label: "Onboard customer", icon: UserPlus },
-  { href: "/quota-requests", label: "Quota requests", icon: Inbox },
   { href: "/users", label: "Team users", icon: Users, superadminOnly: true },
   { href: "/settings", label: "SMTP settings", icon: Mail, superadminOnly: true },
   { href: "/audit", label: "Audit log", icon: ScrollText, superadminOnly: true },
@@ -27,7 +26,6 @@ const TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/licenses": "Licenses",
   "/licenses/onboard": "Onboard customer",
-  "/quota-requests": "Quota requests",
   "/users": "Team users",
   "/settings": "SMTP settings",
   "/audit": "Audit log",

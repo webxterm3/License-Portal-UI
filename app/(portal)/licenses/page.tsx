@@ -83,7 +83,7 @@ export default function LicensesPage() {
                 <th className="th">Company</th>
                 <th className="th">License</th>
                 <th className="th">Plan</th>
-                <th className="th">Machines</th>
+                <th className="th">Quota</th>
                 <th className="th">Status</th>
                 <th className="th">Paid</th>
                 <th className="th">Subscribed</th>
@@ -106,9 +106,7 @@ export default function LicensesPage() {
                     </td>
                     <td className="td font-mono text-xs">{l.public_id}</td>
                     <td className="td capitalize">{l.plan}</td>
-                    <td className="td font-mono">
-                      {l.machines_used ?? 0} / {l.machine_quota}
-                    </td>
+                    <td className="td font-mono">{l.machine_quota}</td>
                     <td className="td">
                       <span className={`pill ${STATUS_COLORS[l.status] || ""}`}>{l.status}</span>
                     </td>

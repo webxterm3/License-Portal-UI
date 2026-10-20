@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Check, Server } from "lucide-react";
+import { Copy, Check } from "lucide-react";
 import { api, Plan } from "@/lib/api";
 import PhoneInput from "@/components/PhoneInput";
 
 type OnboardResult = {
   license_id: string;
   public_id: string;
-  api_key: string;
   password: string;
   status: string;
   quota: number;
@@ -22,7 +21,6 @@ export default function OnboardPage() {
     company_name: "",
     email: "",
     phone: "",
-    deployment_url: "",
     plan: "community",
     machine_quota: 10,
     custom_rate: 0,
@@ -81,24 +79,32 @@ export default function OnboardPage() {
       <div className="max-w-xl">
         <h1 className="text-2xl font-semibold mb-1">Customer onboarded ✔</h1>
         <p className="text-sm text-soft mb-6">
-          Credentials emailed via SMTP. They are shown here <b>once</b> — copy them now.
+          Welcome email sent to customer with login credentials.{" "}
+          {result.status === "trial"
+            ? "License file will be sent when you confirm the trial from the license page."
+            : "License file will be sent when you record their first payment from the license page."}
         </p>
         <div className="card p-6 space-y-4">
-          {[
-            { label: "License ID", value: result.public_id, key: "pid" },
-            { label: "Deployment API key (LICENSE_API_KEY)", value: result.api_key, key: "key" },
-            { label: "Customer superadmin password", value: result.password, key: "pw" },
-          ].map(({ label, value, key }) => (
-            <div key={key}>
-              <p className="text-[11px] font-mono uppercase tracking-wider text-soft mb-1">{label}</p>
+          <div>
+            <p className="text-[11px] font-mono uppercase tracking-wider text-soft mb-1">License ID</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 bg-paper border border-line rounded-lg px-3 py-2 text-xs break-all">{result.public_id}</code>
+              <button className="btn-ghost !px-3" onClick={() => copy(result.public_id, "pid")}>
+                {copied === "pid" ? <Check className="h-4 w-4 text-good" /> : <Copy className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          {result.password && (
+            <div>
+              <p className="text-[11px] font-mono uppercase tracking-wider text-soft mb-1">Customer superadmin password</p>
               <div className="flex items-center gap-2">
-                <code className="flex-1 bg-paper border border-line rounded-lg px-3 py-2 text-xs break-all">{value}</code>
-                <button className="btn-ghost !px-3" onClick={() => copy(value, key)}>
-                  {copied === key ? <Check className="h-4 w-4 text-good" /> : <Copy className="h-4 w-4" />}
+                <code className="flex-1 bg-paper border border-line rounded-lg px-3 py-2 text-xs break-all">{result.password}</code>
+                <button className="btn-ghost !px-3" onClick={() => copy(result.password, "pw")}>
+                  {copied === "pw" ? <Check className="h-4 w-4 text-good" /> : <Copy className="h-4 w-4" />}
                 </button>
               </div>
             </div>
-          ))}
+          )}
           <p className="text-xs text-soft">
             Status: <b className="uppercase">{result.status}</b> · Machine quota: <b>{result.quota}</b>
           </p>
@@ -119,7 +125,8 @@ export default function OnboardPage() {
     <div className="max-w-2xl">
       <h1 className="text-2xl font-semibold mb-1">Onboard customer</h1>
       <p className="text-sm text-soft mb-6">
-        Creates the customer + license, generates the deployment API key and superadmin credentials, and emails them.
+        Creates the customer account and license. A welcome email with login credentials is sent immediately.
+        The license file is sent separately — when you confirm the trial or record their first payment.
       </p>
 
       <form onSubmit={onSubmit} className="space-y-6">
@@ -137,11 +144,6 @@ export default function OnboardPage() {
           <div>
             <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">Phone *</label>
             <PhoneInput value={form.phone} onChange={(phone) => setForm({ ...form, phone })} />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">Deployment URL</label>
-            <input className="input" value={form.deployment_url}
-              onChange={(e) => setForm({ ...form, deployment_url: e.target.value })} placeholder="https://webxterm.com" />
           </div>
         </div>
 
@@ -175,8 +177,7 @@ export default function OnboardPage() {
               Machine quota{form.plan === "enterprise" ? " *" : ""} {form.plan === "community" ? "(fixed at 10)" : selectedPlan && selectedPlan.max_machines > 0 ? `(max ${selectedPlan.max_machines})` : ""}
             </label>
             <div className="relative">
-              <Server className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-soft" />
-              <input className="input pl-9" type="number" min={0}
+              <input className="input" type="number" min={0}
                 value={form.plan === "community" ? 10 : form.machine_quota || ""}
                 disabled={form.plan === "community"}
                 onChange={(e) => setForm({ ...form, machine_quota: Number(e.target.value) })}
@@ -206,7 +207,7 @@ export default function OnboardPage() {
 
         {error && <p className="text-sm text-bad">{error}</p>}
         <button className="btn-primary" disabled={loading}>
-          {loading ? "Creating…" : "Create customer & issue license"}
+          {loading ? "Creating…" : "Create customer"}
         </button>
       </form>
     </div>

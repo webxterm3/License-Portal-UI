@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Users, Clock, BadgeCheck, AlertTriangle, Server, Inbox, Banknote, Ban } from "lucide-react";
+import { Users, Clock, BadgeCheck, AlertTriangle, Banknote, Ban } from "lucide-react";
 import { api } from "@/lib/api";
 
 type Stats = {
@@ -11,8 +11,6 @@ type Stats = {
   paid: number;
   suspended: number;
   expiring_7d: number;
-  active_machines: number;
-  pending_quota_requests: number;
   unpaid_licenses: number;
 };
 
@@ -21,8 +19,6 @@ const CARDS: { key: keyof Stats; label: string; icon: any; tone: string }[] = [
   { key: "on_trial", label: "On trial", icon: Clock, tone: "text-warning" },
   { key: "paid", label: "Paid", icon: BadgeCheck, tone: "text-success" },
   { key: "expiring_7d", label: "Expiring ≤7d", icon: AlertTriangle, tone: "text-destructive" },
-  { key: "active_machines", label: "Active machines", icon: Server, tone: "text-primary" },
-  { key: "pending_quota_requests", label: "Pending quota requests", icon: Inbox, tone: "text-warning" },
   { key: "unpaid_licenses", label: "Unpaid (confirmed)", icon: Banknote, tone: "text-destructive" },
   { key: "suspended", label: "Suspended / expired", icon: Ban, tone: "text-muted-foreground" },
 ];
