@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Carlito:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -9,7 +9,7 @@
     --background: 220 14% 95%;
     --foreground: 222 47% 11%;
 
-    --sidebar-highlight: 262 60% 50%;
+    --sidebar-highlight: 173 80% 40%;
 
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
@@ -56,12 +56,8 @@
 
     --shadow-glow: 0 0 20px hsl(var(--primary) / 0.3);
 
-    /* Calibri is Microsoft-licensed (Windows/Office only) — Carlito is a free,
-       metric-compatible clone, so non-Windows browsers still get the same
-       letter widths and line lengths instead of an unrelated fallback font. */
-    --font-sans: Calibri, Carlito, 'Segoe UI', system-ui, sans-serif;
-    /* Times New Roman ships with Windows and macOS both, so no substitute is needed. */
-    --font-heading: 'Times New Roman', Times, serif;
+    --font-sans: 'Inter', system-ui, sans-serif;
+    --font-heading: 'Inter', system-ui, sans-serif;
     --font-mono: 'JetBrains Mono', monospace;
   }
 
@@ -69,7 +65,7 @@
     --background: 220 13% 10%;
     --foreground: 210 40% 98%;
 
-    --sidebar-highlight: 262 75% 68%;
+    --sidebar-highlight: 173 75% 55%;
 
     --card: 220 13% 14%;
     --card-foreground: 210 40% 98%;

@@ -4,6 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "WebXTerm Licensing Portal",
   description: "Centralised licensing, quota and entitlement control plane for WebXTerm",
+  icons: { icon: "/favicon.ico" },
 };
 
 // Apply the saved theme before hydration to avoid a flash of the wrong theme.
