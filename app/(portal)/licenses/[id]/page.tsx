@@ -38,6 +38,8 @@ export default function LicenseDetailPage() {
   const [updGranted, setUpdGranted] = useState<boolean | null>(null);
   // shared license validity — one field used by confirm, payment, upgrade, reissue
   const [validDays, setValidDays] = useState("365");
+  // once a file is issued, lock the input until admin explicitly reconfigures
+  const [reconfigure, setReconfigure] = useState(false);
   // payment form
   const [pay, setPay] = useState({ amount: "", method: "bank transfer", reference: "", covers_period: "" });
   // upgrade plan
@@ -165,6 +167,7 @@ export default function LicenseDetailPage() {
       const json = await res.json();
       if (json.license_file) setLatestFile(json.license_file);
       setMsg("License file generated — shown below, also emailed to customer ✔");
+      setReconfigure(false);
       load();
     } catch (e: any) {
       setMsg(e.message);
@@ -236,12 +239,7 @@ export default function LicenseDetailPage() {
     setMsg("");
     try {
       await api(`/api/admin/licenses/${id}/status`, { method: "POST", body: { status: "confirmed", reason: "trial confirmed by admin" } });
-      const r = await api<{ license_file: string }>(`/api/admin/licenses/${id}/license-file`, {
-        method: "POST",
-        body: { valid_days: Number(validDays) || 365 },
-      });
-      if (r.license_file) setLatestFile(r.license_file);
-      setMsg("Trial confirmed — license file emailed to customer ✔");
+      setMsg("Trial confirmed — license activated ✔");
       load();
     } catch (e: any) {
       setMsg(e.message);
@@ -294,16 +292,6 @@ export default function LicenseDetailPage() {
           <code className="block bg-paper border border-line rounded-lg px-3 py-2 text-xs break-all">{latestFile}</code>
         </div>
       )}
-
-      {/* shared license validity — applies to confirm, payment, upgrade, reissue */}
-      <div className="card p-4 flex flex-wrap items-center gap-4 border-accent/40">
-        <div>
-          <p className="text-[11px] font-mono uppercase tracking-wider text-soft mb-0.5">License file validity (days)</p>
-          <p className="text-xs text-soft">Applied to every new file issued — confirm, payment, upgrade, manual reissue.</p>
-        </div>
-        <input className="input w-36" type="number" min={1} max={3650}
-          value={validDays} onChange={(e) => setValidDays(e.target.value)} placeholder="365" />
-      </div>
 
       {/* entitlement + billing */}
       <div className="grid lg:grid-cols-3 gap-4">
@@ -490,16 +478,39 @@ export default function LicenseDetailPage() {
               onboarding and on every Upgrade/Update; use this to proactively reissue one ahead of renewal,
               or to redeliver the current one.
             </p>
-            <div className="grid sm:grid-cols-3 gap-4 mb-4">
-              <div>
-                <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">Valid for (days)</label>
-                <input className="input" type="number" min={1} max={3650} value={validDays}
-                  onChange={(e) => setValidDays(e.target.value)} placeholder="365" />
+            {lic.last_file_issued_at && !reconfigure ? (
+              /* Locked state — file already issued */
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="rounded-lg border border-line bg-paper px-4 py-2.5 text-sm flex items-center gap-3">
+                  <span className="text-soft">Current file valid until:</span>
+                  <span className="font-medium">{fmtDate(lic.file_expires_at)}</span>
+                </div>
+                <button className="btn-ghost text-sm" onClick={() => setReconfigure(true)}>
+                  ✎ Reconfigure
+                </button>
               </div>
-            </div>
-            <button className="btn-primary" disabled={!validDays || Number(validDays) < 1} onClick={() => setDialog("file")}>
-              <Download className="h-4 w-4" /> Generate & send
-            </button>
+            ) : (
+              /* Editable state — no file yet, or admin clicked Reconfigure */
+              <>
+                <div className="grid sm:grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <label className="block text-xs font-mono uppercase tracking-wider text-soft mb-1.5">Valid for (days)</label>
+                    <input className="input" type="number" min={1} max={3650} value={validDays}
+                      onChange={(e) => setValidDays(e.target.value)} placeholder="365" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button className="btn-primary" disabled={!validDays || Number(validDays) < 1} onClick={() => setDialog("file")}>
+                    <Download className="h-4 w-4" /> Generate & send
+                  </button>
+                  {reconfigure && (
+                    <button className="btn-ghost text-sm" onClick={() => setReconfigure(false)}>
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </>
         )}
       </div>
@@ -510,7 +521,7 @@ export default function LicenseDetailPage() {
           <>
             <h2 className="font-semibold mb-1">Confirm trial</h2>
             <p className="text-sm text-soft mb-4">
-              Mark this trial as confirmed (no payment needed). A new license file will be generated and emailed to the customer automatically.
+              Mark this trial as confirmed (no payment needed). Use &quot;Generate &amp; send&quot; above to issue the license file first, then confirm here to activate it.
             </p>
             <button className="btn-primary" onClick={() => setDialog("payment")}>
               <Check className="h-4 w-4" /> Confirm &amp; activate
@@ -675,7 +686,7 @@ export default function LicenseDetailPage() {
         title={lic.status === "trial" ? "Confirm & activate this trial?" : "Record payment?"}
         description={
           lic.status === "trial"
-            ? `${cust.company_name} (${lic.public_id}) will be marked confirmed. A license file (365 days) will be generated and emailed to ${cust.email} automatically.`
+            ? `${cust.company_name} (${lic.public_id}) will be marked confirmed. The license file already sent to ${cust.email} remains active — no new file will be generated.`
             : `Record ${pay.amount ? fmtINR(Number(pay.amount)) : ""} (${pay.method || "—"}) for ${cust.company_name}. License file will be generated and emailed to ${cust.email}.`
         }
         confirmLabel={lic.status === "trial" ? "Confirm & activate" : "Record payment"}
